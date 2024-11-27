@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Previous styles remain the same until arrow and hit-effect */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      background: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    .grid-background {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(50, 50, 100, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(50, 50, 100, 0.1) 1px, transparent 1px);
+      background-size: 20px 20px;
+      animation: gridPulse 4s ease-in-out infinite;
+    }
+
+    @keyframes gridPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.8; }
+    }
+
+    .toolbar {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .bow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      background: #4a90e2;
+      border-radius: 50%;
+      border: 2px solid #6ab0ff;
+      box-shadow: 0 0 20px #4a90e280;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .bow::after {
+      content: '🏹';
+      font-size: 24px;
+    }
+
+    .bow.active {
+      transform: translate(-50%, -50%) scale(1.2);
+      box-shadow: 0 0 30px #4a90e2;
+    }
+
+    .tool-icon {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #2d3436;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid #636e72;
+    }
+
+    .tool-icon.target {
+      border: 2px solid #ffd700;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+      animation: targetPulse 0.8s infinite;
+    }
+
+    @keyframes targetPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    .flying-arrow {
+      position: fixed;
+      width: 30px;
+      height: 6px;
+      background: #ffd700;
+      border-radius: 3px;
+      pointer-events: none;
+      z-index: 1000;
+      transform-origin: left center;
+    }
+
+    .flying-arrow::after {
+      content: '';
+      position: absolute;
+      right: -6px;
+      top: -7px;
+      border-left: 10px solid #ffd700;
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+
+    .firing-line {
+      position: absolute;
+      height: 2px;
+      background: linear-gradient(90deg, 
+        rgba(255, 215, 0, 0.8) 0%,
+        rgba(255, 215, 0, 0.4) 50%,
+        transparent 100%);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .hit-notification {
+      position: fixed;
+      padding: 10px 20px;
+      background: rgba(255, 215, 0, 0.9);
+      color: #000;
+      border-radius: 20px;
+      font-weight: bold;
+      z-index: 1001;
+      pointer-events: none;
+      animation: notificationFade 1.5s ease-out forwards;
+    }
+
+    @keyframes notificationFade {
+      0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+      20% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+      80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+    }
+
+    .hit-effect {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    @keyframes hitExpand {
+      0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+    }
+
+    .hit-ring {
+      position: absolute;
+      border: 3px solid #ffd700;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: hitExpand 0.6s ease-out forwards;
+    }
+
+    .prompt-container {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 400px;
+      z-index: 100;
+    }
+
+    .prompt-input {
+      width: 100%;
+      padding: 15px;
+      border-radius: 25px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .prompt-input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-background"></div>
+  <div class="toolbar"></div>
+  <div class="firing-line"></div>
+  <div class="prompt-container">
+    <input type="text" class="prompt-input" placeholder="Enter creative command...">
+  </div>
+
+  <script>
+    const tools = [
+      { icon: '📝', name: 'Text' },
+      { icon: '🎵', name: 'Music' },
+      { icon: '🎥', name: 'Video' },
+      { icon: '🖼️', name: 'Image' },
+      { icon: '🎙️', name: 'Voice' },
+      { icon: '🌎', name: 'World' },
+      { icon: '👤', name: 'Character' },
+      { icon: '🎨', name: 'Design' }
+    ];
+
+    const toolbar = document.querySelector('.toolbar');
+    const bow = document.createElement('div');
+    bow.className = 'bow';
+    toolbar.appendChild(bow);
+
+    let isDragging = false;
+    let targetTool = null;
+    let firingLine = document.querySelector('.firing-line');
+
+    // Create and position tools
+    tools.forEach((tool, index) => {
+      const angle = (index / tools.length) * Math.PI * 2;
+      const radius = 120;
+      const x = Math.cos(angle) * radius + 150;
+      const y = Math.sin(angle) * radius + 150;
+
+      const toolElement = document.createElement('div');
+      toolElement.className = 'tool-icon';
+      toolElement.innerHTML = tool.icon;
+      toolElement.style.left = `${x - 25}px`;
+      toolElement.style.top = `${y - 25}px`;
+      toolElement.dataset.name = tool.name;
+      
+      toolbar.appendChild(toolElement);
+    });
+
+    // Track mouse/touch movement
+    document.addEventListener('mousedown', startAiming);
+    document.addEventListener('touchstart', startAiming);
+
+    function startAiming(e) {
+      if (e.target.classList.contains('tool-icon') || e.target === bow) {
+        isDragging = true;
+        bow.classList.add('active');
+        document.addEventListener('mousemove', updateAim);
+        document.addEventListener('touchmove', updateAim);
+        document.addEventListener('mouseup', fireArrow);
+        document.addEventListener('touchend', fireArrow);
+      }
+    }
+
+    function updateAim(e) {
+      if (!isDragging) return;
+      
+      const bowRect = bow.getBoundingClientRect();
+      const bowCenterX = bowRect.left + bowRect.width / 2;
+      const bowCenterY = bowRect.top + bowRect.height / 2;
+
+      const mouseX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+      const mouseY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+      // Update firing line
+      const angle = Math.atan2(mouseY - bowCenterY, mouseX - bowCenterX);
+      const distance = Math.sqrt(Math.pow(mouseX - bowCenterX, 2) + Math.pow(mouseY - bowCenterY, 2));
+
+      firingLine.style.display = 'block';
+      firingLine.style.width = `${distance}px`;
+      firingLine.style.left = `${bowCenterX}px`;
+      firingLine.style.top = `${bowCenterY}px`;
+      firingLine.style.transform = `rotate(${angle * (180 / Math.PI)}deg)`;
+
+      // Check for targets
+      const tools = document.querySelectorAll('.tool-icon');
+      let newTarget = null;
+
+      tools.forEach(tool => {
+        const rect = tool.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const toolDistance = Math.sqrt(Math.pow(mouseX - centerX, 2) + Math.pow(mouseY - centerY, 2));
+
+        if (toolDistance < 40) {
+          newTarget = tool;
+        }
+      });
+
+      if (targetTool !== newTarget) {
+        if (targetTool) targetTool.classList.remove('target');
+        if (newTarget) newTarget.classList.add('target');
+        targetTool = newTarget;
+      }
+    }
+
+    function fireArrow(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      bow.classList.remove('active');
+      firingLine.style.display = 'none';
+
+      if (targetTool) {
+        const bowRect = bow.getBoundingClientRect();
+        const targetRect = targetTool.getBoundingClientRect();
+        
+        const startX = bowRect.left + bowRect.width / 2;
+        const startY = bowRect.top + bowRect.height / 2;
+        const endX = targetRect.left + targetRect.width / 2;
+        const endY = targetRect.top + targetRect.height / 2;
+
+        // Create and animate arrow
+        const arrow = document.createElement('div');
+        arrow.className = 'flying-arrow';
+        document.body.appendChild(arrow);
+
+        const angle = Math.atan2(endY - startY, endX - startX);
+        arrow.style.left = `${startX}px`;
+        arrow.style.top = `${startY}px`;
+        arrow.style.transform = `rotate(${angle * (180 / Math.PI)}deg)`;
+
+        // Animate arrow flight
+        setTimeout(() => {
+          arrow.style.transition = 'all 0.3s ease-out';
+          arrow.style.left = `${endX}px`;
+          arrow.style.top = `${endY}px`;
+        }, 50);
+
+        // Show hit effect
+        setTimeout(() => {
+          createHitEffect(endX, endY);
+          showHitNotification(targetTool.dataset.name, endX, endY);
+          arrow.remove();
+          targetTool.classList.remove('target');
+        }, 300);
+      }
+
+      document.removeEventListener('mousemove', updateAim);
+      document.removeEventListener('touchmove', updateAim);
+      document.removeEventListener('mouseup', fireArrow);
+      document.removeEventListener('touchend', fireArrow);
+    }
+
+    function createHitEffect(x, y) {
+      const hitEffect = document.createElement('div');
+      hitEffect.className = 'hit-effect';
+      hitEffect.style.left = `${x}px`;
+      hitEffect.style.top = `${y}px`;
+
+      const ring1 = document.createElement('div');
+      ring1.className = 'hit-ring';
+      const ring2 = document.createElement('div');
+      ring2.className = 'hit-ring';
+      ring2.style.animationDelay = '0.2s';
+
+      hitEffect.appendChild(ring1);
+      hitEffect.appendChild(ring2);
+      document.body.appendChild(hitEffect);
+
+      setTimeout(() => hitEffect.remove(), 1000);
+    }
+
+    function showHitNotification(toolName, x, y) {
+      const notification = document.createElement('div');
+      notification.className = 'hit-notification';
+      notification.textContent = `${toolName} Selected!`;
+      notification.style.left = `${x}px`;
+      notification.style.top = `${y - 40}px`;
+      document.body.appendChild(notification);
+
+      setTimeout(() => notification.remove(), 1500);
+    }
+
+    // Handle prompt input
+    const promptInput = document.querySelector('.prompt-input');
+    promptInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const command = promptInput.value.toLowerCase();
+        promptInput.value = '';
+        
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        createHitEffect(centerX, centerY);
+        showHitNotification('Command', centerX, centerY);
+      }
+    });
+  </script>
+</body>
+</html>
